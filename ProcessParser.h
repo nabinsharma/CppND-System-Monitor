@@ -17,14 +17,14 @@
 #include <time.h>
 #include <unistd.h>
 #include "constants.h"
-
+#include "util.h"
 
 using namespace std;
 
 class ProcessParser{
-private:
+  private:
     std::ifstream stream;
-    public:
+  public:
     static string getCmd(string pid);
     static vector<string> getPidList();
     static std::string getVmSize(string pid);
@@ -44,3 +44,19 @@ private:
 };
 
 // TODO: Define all of the above functions below:
+string ProcessParser::getVmSize(std::string pid) {
+  string key("VmData");
+  ifstream fStatus;
+  Util::getStream(Path::basePath() + pid + Path::statusPath(), fStatus);
+  string line;
+  float memSizeMB = 0;
+  while (getline(fStatus, line)) {
+    if (line.find(key) != 0)
+      continue;
+    istringstream iss(line);
+    istream_iterator<string> beg(iss), end;
+    vector<string> lineSubStrs(beg, end);
+    memSizeMB = stof(lineSubStrs[1]) / 1024;
+  }
+  return to_string(memSizeMB);
+}
