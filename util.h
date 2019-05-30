@@ -9,6 +9,7 @@ public:
 static std::string convertToTime ( long int input_seconds );
 static std::string getProgressBar(std::string percent);
 static void getStream(std::string path, std::ifstream& stream);
+static std::vector<std::string> streamLineToStringVector(std::string &streamLine);
 };
 
 std::string Util::convertToTime (long int input_seconds){
@@ -53,4 +54,11 @@ void Util::getStream(std::string path, std::ifstream& stream){
         stream.close();
         throw std::runtime_error("Non - existing PID");
     }
+}
+
+std::vector<std::string> Util::streamLineToStringVector(std::string &streamLine) {
+  std::istringstream iss(streamLine);
+  std::istream_iterator<std::string> beg(iss), end;
+  std::vector<std::string> vec(beg, end);
+  return vec;
 }

@@ -53,10 +53,61 @@ string ProcessParser::getVmSize(std::string pid) {
   while (getline(fStatus, line)) {
     if (line.find(key) != 0)
       continue;
-    istringstream iss(line);
-    istream_iterator<string> beg(iss), end;
-    vector<string> lineSubStrs(beg, end);
+    vector<string> lineSubStrs = Util::streamLineToStringVector(line);
     memSizeMB = stof(lineSubStrs[1]) / 1024;
   }
   return to_string(memSizeMB);
+}
+
+string ProcessParser::getProcUpTime(string pid) {
+  // Index (1 based) of the entry in stat result (from proc man page)
+  int idxInStatResult = 14;
+  
+  ifstream fStat;
+  Util::getStream(Path::basePath() + pid + "/" + Path::statPath(), fStat);
+  string result;
+  getline(fStat, result);
+  vector<string> statEntries = Util::streamLineToStringVector(result);
+  return to_string(stof(statEntries[idxInStatResult - 1]) / sysconf(_SC_CLK_TCK));
+}
+
+long int ProcessParser::getSysUpTime() {
+  ifstream fUptime;
+  Util::getStream(Path::basePath() + Path::upTimePath(), fUptime);
+  string result;
+  getline(fUptime, result);
+  vector<string> upTimeEntries = Util::streamLineToStringVector(result);
+  // First entry is the system uptime in seconds
+  return stoi(upTimeEntries[0]);
+}
+
+string ProcessParser::getCpuPercent(string pid) {
+  // Indices (1 based) to access various /proc/pid/stat parameters.
+  // Based on proc/stat man page.
+  int utimeIdx = 14;
+  int stimeIdx = 15;
+  int cutimeIdx = 16;
+  int cstimeIdx = 17;
+  int starttimeIdx = 22;
+  float freq = sysconf(_SC_CLK_TCK);
+  
+  ifstream fStat;
+  Util::getStream(Path::basePath() + pid + "/" + Path::statPath(), fStat);
+  string result;
+  getline(fStat, result);
+  vector<string> statEntries = Util::streamLineToStringVector(result);
+  
+  // Could use getProcUpTime, but conversion back to CPU ticks is clumsy.
+  float utime = stof(statEntries[utimeIdx - 1]);
+  
+  float stime = stof(statEntries[stimeIdx - 1]);
+  float cutime = stof(statEntries[cutimeIdx - 1]);
+  float cstime = stof(statEntries[cstimeIdx - 1]);
+  float timeConsumed = (utime + stime + cutime + cstime) / freq;
+  
+  float starttime = stof(statEntries[starttimeIdx - 1]);
+  float uptimeSec = ProcessParser::getSysUpTime();
+  float timeElapsed = uptimeSec - (starttime / freq);
+  
+  return to_string((timeConsumed / timeElapsed) * 100);
 }
