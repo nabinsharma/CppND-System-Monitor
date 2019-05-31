@@ -24,6 +24,8 @@ using namespace std;
 class ProcessParser{
   private:
     std::ifstream stream;
+    static float getSysActiveCpuTime(vector<string> values);
+    static float getSysIdleCpuTime(vector<string>values);
   public:
     static string getCmd(string pid);
     static vector<string> getPidList();
@@ -55,6 +57,7 @@ string ProcessParser::getVmSize(std::string pid) {
       continue;
     vector<string> lineSubStrs = Util::streamLineToStringVector(line);
     memSizeMB = stof(lineSubStrs[1]) / 1024;
+    break;
   }
   return to_string(memSizeMB);
 }
@@ -111,3 +114,103 @@ string ProcessParser::getCpuPercent(string pid) {
   
   return to_string((timeConsumed / timeElapsed) * 100);
 }
+
+string ProcessParser::getProcUser(string pid) {
+  string key("Uid:");
+  // Once Uid: line is found in pid status, use this 0 based
+  // index using space as delimiter to extract uid.
+  int uidIndex = 1;
+  
+  ifstream fStatus;
+  Util::getStream(Path::basePath() + pid + Path::statusPath(), fStatus);
+  string line;
+  string uid;
+  while (getline(fStatus, line)) {
+    if (line.find(key) != 0)
+      continue;
+    vector<string> lineSubStrs = Util::streamLineToStringVector(line);
+    uid = lineSubStrs[uidIndex];
+    break;
+  }
+  // Now search /etc/passwd result using uid extracted above
+  // There will be a line "user:x:uid:blah blah blah"
+  // The idea is to search for :x:uid and extract the user name just
+  // left of that.
+  string searchStr = ":x:" + uid;
+  ifstream fPasswd;
+  Util::getStream("/etc/passwd", fPasswd);
+  string user;
+  size_t pos;
+  while (getline(fPasswd, line)) {
+    pos = line.find(searchStr);
+    if (pos == string::npos)
+      continue;
+    user = line.substr(0, pos);
+    break;
+  }
+  return user;
+}
+
+vector<string> ProcessParser::getPidList() {
+  DIR *procDir;
+  if (!(procDir = opendir("/proc"))) {
+    throw runtime_error(strerror(errno));
+  }
+  
+  vector<string> pidList;
+  while (dirent *de = readdir(procDir)) {
+    if (all_of(de->d_name, de->d_name + strlen(de->d_name), [](char c) {
+      return isdigit(c); })) {
+      pidList.push_back(de->d_name);
+    }
+  }
+  if (closedir(procDir)) {
+    throw runtime_error(strerror(errno));
+  }
+  return pidList;
+}
+
+string ProcessParser::getCmd(string pid) {
+  ifstream fCmd;
+  Util::getStream(Path::basePath() + pid + "/" + Path::cmdPath(), fCmd);
+  string result;
+  getline(fCmd, result);
+  return result;
+}
+
+vector<string> ProcessParser::getSysCpuPercent(string coreNumber) {
+  string key = "cpu" + coreNumber;
+  ifstream fStat;
+  Util::getStream(Path::basePath() + Path::statPath(), fStat);
+  vector<string> lineSubStrs;
+  string line;
+  while (getline(fStat, line)) {
+    if (line.find(key) != 0)
+      continue;
+    lineSubStrs = Util::streamLineToStringVector(line);
+    break;
+  }
+  return lineSubStrs;
+}
+
+float ProcessParser::getSysActiveCpuTime(vector<string> values) {
+  return (stof(values[S_USER]) +
+          stof(values[S_NICE]) +
+          stof(values[S_SYSTEM]) +
+          stof(values[S_IRQ]) +
+          stof(values[S_SOFTIRQ]) +
+          stof(values[S_STEAL]) +
+          stof(values[S_GUEST]) +
+          stof(values[S_GUEST_NICE]));
+}
+
+float ProcessParser::getSysIdleCpuTime(vector<string>values) {
+  return (stof(values[S_IDLE]) + stof(values[S_IOWAIT]));
+}
+
+string ProcessParser::PrintCpuStats(std::vector<std::string> values1, std::vector<std::string>values2) {
+  float activeTime = getSysActiveCpuTime(values2) - getSysActiveCpuTime(values1);
+  float idleTime = getSysIdleCpuTime(values2) - getSysIdleCpuTime(values1);
+  return to_string((activeTime / (activeTime + idleTime)) * 100);
+}
+
