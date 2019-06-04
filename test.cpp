@@ -29,6 +29,8 @@ int main(void) {
   
   cout << "PID " << pid << " cmdline is " << pp.getCmd(pid) << "\n";
   
+  cout << "Number of CPU cores is " << pp.getNumberOfCores() << "\n";
+  
   std::vector<std::string> cpuPercent = pp.getSysCpuPercent();
   cout << "cpuPercent info is ";
   for (std::vector<std::string>::iterator it = cpuPercent.begin(); it != cpuPercent.end(); it++) {
@@ -46,4 +48,21 @@ int main(void) {
   vector<string> values2 = pp.getSysCpuPercent();
   cout << "CPU stat is " << pp.PrintCpuStats(values2, values1) << "% \n";
   
+  cout << "RAM usage is " << pp.getSysRamPercent() << "% \n";
+  
+  cout << "Linux version is " << pp.getSysKernelVersion() << " \n";
+  
+  cout << "OS name is " << pp.getOSName() << " \n";
+  
+  cout << "Number of total threads is " << pp.getTotalThreads() << " \n";
+  
+  int processes = pp.getTotalNumberOfProcesses();
+  int runningProcesses = pp.getNumberOfRunningProcesses();
+  cout << "Number of running/total processes is " << runningProcesses << " / " << processes << "\n";
+  
+  bool found = pp.isPidExisting(pid);
+  if (found)
+    cout << "PID " + pid + " exists" << "\n";
+  else
+    cout << "PID " + pid + " does not exist" << "\n";
 }

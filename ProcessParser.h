@@ -37,6 +37,7 @@ class ProcessParser{
     static vector<string> getSysCpuPercent(string coreNumber = "");
     static float getSysRamPercent();
     static string getSysKernelVersion();
+    static int getNumberOfCores();
     static int getTotalThreads();
     static int getTotalNumberOfProcesses();
     static int getNumberOfRunningProcesses();
@@ -45,7 +46,6 @@ class ProcessParser{
     static bool isPidExisting(string pid);
 };
 
-// TODO: Define all of the above functions below:
 string ProcessParser::getVmSize(std::string pid) {
   string key("VmData");
   ifstream fStatus;
@@ -178,6 +178,21 @@ string ProcessParser::getCmd(string pid) {
   return result;
 }
 
+int ProcessParser::getNumberOfCores() {
+  string key = "cpu cores";
+  ifstream fCpuinfo;
+  Util::getStream(Path::basePath() + "cpuinfo", fCpuinfo);
+  vector<string> lineSubStrs;
+  string line;
+  while (getline(fCpuinfo, line)) {
+    if (line.find(key) != 0)
+      continue;
+    lineSubStrs = Util::streamLineToStringVector(line);
+    break;
+  }
+  return stoi(lineSubStrs[3]);
+}
+
 vector<string> ProcessParser::getSysCpuPercent(string coreNumber) {
   string key = "cpu" + coreNumber;
   ifstream fStat;
@@ -214,3 +229,127 @@ string ProcessParser::PrintCpuStats(std::vector<std::string> values1, std::vecto
   return to_string((activeTime / (activeTime + idleTime)) * 100);
 }
 
+float ProcessParser::getSysRamPercent() {
+  string keyMemAvailable = "MemAvailable:";
+  string keyMemFree = "MemFree:";
+  string keyBuffers = "Buffers:";
+  
+  float memAvailableKB = 0;
+  float memBuffersKB = 0;
+  float memFreeKB = 0;
+  ifstream fMeminfo;
+  Util::getStream(Path::basePath() + Path::memInfoPath(), fMeminfo);
+  string line;
+  bool memAvailableRead = false;
+  bool memBuffersRead = false;
+  bool memFreeRead = false;
+  while (getline(fMeminfo, line)) {
+    if (memAvailableRead && memBuffersRead && memFreeRead)
+      break;
+    
+    if (line.find(keyMemAvailable) == 0) {
+      vector<string> lineSubStrs = Util::streamLineToStringVector(line);
+      memAvailableKB = stof(lineSubStrs[1]);
+      memAvailableRead = true;
+    }
+    
+    if (line.find(keyBuffers) == 0) {
+      vector<string> lineSubStrs = Util::streamLineToStringVector(line);
+      memBuffersKB = stof(lineSubStrs[1]);
+      memBuffersRead = true;
+    }
+    
+    if (line.find(keyMemFree) == 0) {
+      vector<string> lineSubStrs = Util::streamLineToStringVector(line);
+      memFreeKB = stof(lineSubStrs[1]);
+      memFreeRead = true;
+    }
+  }
+  float memReallyAvailableKB = memAvailableKB - memBuffersKB;
+  return 100 * (1 - (memFreeKB / memReallyAvailableKB));
+}
+
+string ProcessParser::getSysKernelVersion() {
+  string key = "Linux version";
+  ifstream fVersion;
+  Util::getStream(Path::basePath() + Path::versionPath(), fVersion);
+  string line;
+  while (getline(fVersion, line)) {
+    if (line.find(key) != 0)
+      continue;
+    break;
+  }
+  vector<string> lineSubStrs = Util::streamLineToStringVector(line);
+  return lineSubStrs[2];
+}
+
+string ProcessParser::getOSName() {
+  string key = "PRETTY_NAME=";
+  ifstream fRelease;
+  Util::getStream("/etc/os-release", fRelease);
+  string line;
+  while (getline(fRelease, line)) {
+    if (line.find(key) != 0)
+      continue;
+    break;
+  }
+  size_t start_idx = line.find_first_of('"') + 1;
+  size_t end_idx = line.find_last_of('"');
+  return line.substr(start_idx, end_idx - start_idx); 
+}
+
+int ProcessParser::getTotalThreads() {
+  string key = "Threads:";
+  int numTotalThreads = 0;
+  vector<string> processIds = ProcessParser::getPidList();
+  for (int i = 0; i < processIds.size(); i++) {
+    string pid = processIds[i];
+    ifstream fStatus;
+    Util::getStream(Path::basePath() + pid + Path::statusPath(), fStatus);
+    string line;
+    while (getline(fStatus, line)) {
+      if (line.find(key) != 0)
+        continue;
+      break;
+    }
+    vector<string> lineSubStrs = Util::streamLineToStringVector(line);
+    numTotalThreads += stoi(lineSubStrs[1]);
+  }
+  return numTotalThreads;
+}
+
+int ProcessParser::getTotalNumberOfProcesses() {
+  string key = "processes";
+  ifstream fStat;
+  Util::getStream(Path::basePath() + Path::statPath(), fStat);
+  string line;
+  while (getline(fStat, line)) {
+    if (line.find(key) != 0)
+      continue;
+    break;
+  }
+  vector<string> lineSubStrs = Util::streamLineToStringVector(line);
+  return stoi(lineSubStrs[1]);
+}
+
+int ProcessParser::getNumberOfRunningProcesses() {
+  string key = "procs_running";
+  ifstream fStat;
+  Util::getStream(Path::basePath() + Path::statPath(), fStat);
+  string line;
+  while (getline(fStat, line)) {
+    if (line.find(key) != 0)
+      continue;
+    break;
+  }
+  vector<string> lineSubStrs = Util::streamLineToStringVector(line);
+  return stoi(lineSubStrs[1]);
+}
+
+bool ProcessParser::isPidExisting(string pid) {
+  vector<string> pidList = ProcessParser::getPidList();
+  if (find(pidList.begin(), pidList.end(), pid) != pidList.end())
+    return true;
+  else
+    return false;
+}
