@@ -1,5 +1,9 @@
+#pragma once
+
 #include <string>
 #include <fstream>
+#include <sstream>
+#include <iterator>
 
 // Classic helper function
 class Util {
